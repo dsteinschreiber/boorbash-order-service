@@ -67,7 +67,6 @@ public class OrderService {
         LOGGER.debug("Searching restaurant ID: " + restaurantId);
         Connection con = this.dataSource.getConnection();
 
-
         PreparedStatement stmt = con.prepareStatement(
                 "select dish_name, division, dish_description, price, dish_pic_url " +
                         "from menu_entry where restaurant_id=? order by division"
@@ -134,8 +133,7 @@ public class OrderService {
             String division = rs1.getString(1);
 
             PreparedStatement stmt2 = con.prepareStatement(
-                    "select dish_name, dish_description, price, dish_pic_url from menu_entry " +
-                            "where division=?"
+                    "select dish_name, dish_description, price, dish_pic_url from menu_entry where division=?"
             );
 
             stmt2.setString(1, division);
