@@ -67,8 +67,62 @@ public class OrderService {
         LOGGER.debug("Searching restaurant ID: " + restaurantId);
         Connection con = this.dataSource.getConnection();
 
+
+        PreparedStatement stmt = con.prepareStatement(
+                "select dish_name, division, dish_description, price, dish_pic_url " +
+                        "from menu_entry where restaurant_id=? order by division"
+        );
+
+        stmt.setInt(1, restaurantId);
+        ResultSet rs = stmt.executeQuery();
+
+        Collection<MenuDivision> menuDivisions = new ArrayList<>();
+        Collection<MenuItem> menuItems = new ArrayList<>();
+
+        String lastDivision = "";
+
+        while (rs.next()){
+            String dishName = rs.getString(1);
+            String division = rs.getString(2);
+            String dishDescription = rs.getString(3);
+            BigDecimal price = rs.getBigDecimal(4);
+            String dishPicUrl = rs.getString(5);
+
+            if (lastDivision.equals("")){
+                lastDivision = division;
+            }
+
+            if (!lastDivision.equals(division)){
+                menuDivisions.add(MenuDivision.of(menuItems, lastDivision));
+                menuItems = new ArrayList<>();
+                lastDivision = division;
+            }
+
+            menuItems.add(MenuItem.of(dishName, dishDescription, price, dishPicUrl));
+
+        }
+
+        menuDivisions.add(MenuDivision.of(menuItems, lastDivision));
+
+        stmt.close();
+        con.close();
+
+        return Menu.of(menuDivisions);
+    }
+
+
+
+    // Long query:
+
+    @GetMapping("getMenuFirstRun")
+    public Menu getMenuFirstRun(@RequestParam("restaurantId") int restaurantId) throws SQLException {
+        LOGGER.debug("Searching restaurant ID: " + restaurantId);
+        Connection con = this.dataSource.getConnection();
+
+
         PreparedStatement stmt1 = con.prepareStatement(
                 "select distinct division from menu_entry where restaurant_id=?"
+
         );
 
         stmt1.setInt(1, restaurantId);
