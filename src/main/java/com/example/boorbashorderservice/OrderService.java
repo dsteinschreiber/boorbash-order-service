@@ -16,7 +16,10 @@ import javax.sql.DataSource;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.AbstractCollection;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
@@ -32,10 +35,10 @@ public class OrderService {
                     MenuDivision.of(
                             List.of(
                                     MenuItem.of(
-                                        "Mushroom Burger",
-                                           "A friggin Mushroom Burger.",
-                                           new BigDecimal("15.99"),
-                                           ""
+                                            "Mushroom Burger",
+                                            "A friggin Mushroom Burger.",
+                                            new BigDecimal("15.99"),
+                                            ""
                                     ),
                                     MenuItem.of(
                                             "Loaded Fries",
@@ -62,14 +65,47 @@ public class OrderService {
     @GetMapping("getMenu")
     public Menu getMenu(@RequestParam("restaurantId") int restaurantId) throws SQLException {
         LOGGER.debug("Searching restaurant ID: " + restaurantId);
-//        Connection con = this.dataSource.getConnection();
-//        PreparedStatement stmt = con.prepareStatement(
-//                "select division from menu_entry where restaurant_id=?"
-//        );
-//        stmt.setString(1, restaurantId);
+        Connection con = this.dataSource.getConnection();
 
-        return SAMPLE_RESULT;
+        PreparedStatement stmt1 = con.prepareStatement(
+                "select distinct division from menu_entry where restaurant_id=?"
+        );
 
+        stmt1.setInt(1, restaurantId);
+        ResultSet rs1 = stmt1.executeQuery();
 
+        Collection<MenuDivision> menuDivisions = new ArrayList<>();
+
+        while (rs1.next()) {
+            String division = rs1.getString(1);
+
+            PreparedStatement stmt2 = con.prepareStatement(
+                    "select dish_name, dish_description, price, dish_pic_url from menu_entry " +
+                            "where division=?"
+            );
+
+            stmt2.setString(1, division);
+            ResultSet rs2 = stmt2.executeQuery();
+
+            Collection<MenuItem> menuItems = new ArrayList<>();
+
+            while (rs2.next()) {
+                String dishName = rs2.getString(1);
+                String dishDescription = rs2.getString(2);
+                BigDecimal dishPrice = rs2.getBigDecimal(3);
+                String disPicUrl = rs2.getString(4);
+
+                menuItems.add(MenuItem.of(dishName, dishDescription, dishPrice, disPicUrl));
+            }
+
+            menuDivisions.add(MenuDivision.of(menuItems, division));
+
+            stmt2.close();
+        }
+
+        stmt1.close();
+        con.close();
+
+        return Menu.of(menuDivisions);
     }
 }
