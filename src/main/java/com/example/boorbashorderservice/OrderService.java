@@ -176,7 +176,14 @@ public class OrderService {
         stmt.setInt(1, restaurantId);
         ResultSet rs = stmt.executeQuery();
 
-        Map<String, Collection<MenuItem>> menuMap = new HashMap<>();
+
+
+//        Map<String, Collection<MenuItem>> menuMap = new HashMap<>();
+
+        // HashMap has an unpredictable order of keys, but has a get() time complexity of O(1).
+        // TreeMap has natural order of keys (implemented as binary search tree) but get() has time complexity O(log n).
+
+        Map<String, Collection<MenuItem>> menuMap = new TreeMap<>();
 
         while (rs.next()) {
             String dishName = rs.getString(1);
