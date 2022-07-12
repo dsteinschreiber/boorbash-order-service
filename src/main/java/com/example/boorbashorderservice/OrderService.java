@@ -18,10 +18,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.AbstractCollection;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 
 @RestController
 public class OrderService {
@@ -62,6 +59,9 @@ public class OrderService {
             )
     );
 
+
+    // Best practice once optimized (good for big query) :
+
     @GetMapping("getMenu")
     public Menu getMenu(@RequestParam("restaurantId") int restaurantId) throws SQLException {
         LOGGER.debug("Searching restaurant ID: " + restaurantId);
@@ -80,18 +80,18 @@ public class OrderService {
 
         String lastDivision = "";
 
-        while (rs.next()){
+        while (rs.next()) {
             String dishName = rs.getString(1);
             String division = rs.getString(2);
             String dishDescription = rs.getString(3);
             BigDecimal price = rs.getBigDecimal(4);
             String dishPicUrl = rs.getString(5);
 
-            if (lastDivision.equals("")){
+            if (lastDivision.equals("")) {
                 lastDivision = division;
             }
 
-            if (!lastDivision.equals(division)){
+            if (!lastDivision.equals(division)) {
                 menuDivisions.add(MenuDivision.of(menuItems, lastDivision));
                 menuItems = new ArrayList<>();
                 lastDivision = division;
@@ -110,8 +110,7 @@ public class OrderService {
     }
 
 
-
-    // Long query:
+    // Long query (too many calls to database, don't ever do this!) :
 
     @GetMapping("getMenuFirstRun")
     public Menu getMenuFirstRun(@RequestParam("restaurantId") int restaurantId) throws SQLException {
@@ -160,4 +159,75 @@ public class OrderService {
 
         return Menu.of(menuDivisions);
     }
+
+
+    // Using java.util.Map to build menu (have this be your first move, and usually last) :
+
+    @GetMapping("getMenuThirdRun")
+    public Menu getMenuThirdRun(@RequestParam("restaurantId") int restaurantId) throws SQLException {
+        LOGGER.debug("Searching restaurant ID: " + restaurantId);
+        Connection con = this.dataSource.getConnection();
+
+        PreparedStatement stmt = con.prepareStatement(
+                "select dish_name, division, dish_description, price, dish_pic_url " +
+                        "from menu_entry where restaurant_id=?"
+        );
+
+        stmt.setInt(1, restaurantId);
+        ResultSet rs = stmt.executeQuery();
+
+        Map<String, Collection<MenuItem>> menuMap = new HashMap<>();
+
+        while (rs.next()) {
+            String dishName = rs.getString(1);
+            String division = rs.getString(2);
+            String dishDescription = rs.getString(3);
+            BigDecimal price = rs.getBigDecimal(4);
+            String dishPicUrl = rs.getString(5);
+
+            // using merge:
+
+            menuMap.merge(division,
+                    new ArrayList<>(List.of(MenuItem.of(dishName, dishDescription, price, dishPicUrl))),
+                    (oldValue, value) -> {
+                        oldValue.add(MenuItem.of(dishName, dishDescription, price, dishPicUrl));
+                        return oldValue;
+                    }
+            );
+
+
+            // using get (once) and put:
+
+//            Collection<MenuItem> menuItems = menuMap.get(division);
+//
+//            if (menuItems != null) {
+//                menuItems.add(MenuItem.of(dishName, dishDescription, price, dishPicUrl));
+//            } else {
+//                menuMap.put(division,
+//                        new ArrayList<>(List.of(MenuItem.of(dishName, dishDescription, price, dishPicUrl))));
+//            }
+
+
+            // using get (twice) and put:
+
+//            if (menuMap.containsKey(division)) {
+//                menuMap.get(division).add(MenuItem.of(dishName, dishDescription, price, dishPicUrl));
+//            } else {
+//                menuMap.put(division,
+//                        new ArrayList<>(List.of(MenuItem.of(dishName, dishDescription, price, dishPicUrl))));
+//            }
+        }
+
+        Collection<MenuDivision> menuDivisions = new ArrayList<>();
+
+        for (String divisionName : menuMap.keySet()) {
+            menuDivisions.add(MenuDivision.of(menuMap.get(divisionName), divisionName));
+        }
+
+        stmt.close();
+        con.close();
+
+        return Menu.of(menuDivisions);
+    }
+
 }
